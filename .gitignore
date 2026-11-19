@@ -1,0 +1,13 @@
+# Local outputs: ship executables via GitHub Releases or CI artifacts, not Git history.
+dist/
+*.exe
+*.test
+*.log
+coverage.out
+coverage.html
+*.zip
+.DS_Store
+.vscode/
+.idea/
+# Checked-in, sanitized quality evidence for the preview build.
+!test_evidence/*.log

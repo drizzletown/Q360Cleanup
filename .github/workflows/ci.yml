@@ -1,0 +1,70 @@
+name: CI - Core tests and Windows native validation
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: source/go.mod
+          cache-dependency-path: source/go.mod
+      - name: Core unit tests and coverage
+        working-directory: source
+        run: go test -count=1 -coverprofile=coverage.out ./...
+      - name: Race detector
+        working-directory: source
+        run: go test -race -count=1 ./...
+      - name: Static checks
+        working-directory: source
+        run: go vet ./...
+      - name: Compile Windows GUI (cross check)
+        working-directory: source
+        run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-H windowsgui -s -w' -o ../q360-cross-compiled.exe .
+      - name: Upload coverage evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-coverage
+          path: source/coverage.out
+
+  windows-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: source/go.mod
+          cache-dependency-path: source/go.mod
+      - name: Windows-native safe tests (no uninstall or cleanup)
+        working-directory: source
+        run: go test -count=1 -timeout=5m -v ./...
+      - name: Windows vet
+        working-directory: source
+        run: go vet ./...
+      - name: Build release binary and SHA-256 checksum
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - name: Verify binary hash
+        shell: pwsh
+        run: ./scripts/verify-release.ps1
+      - name: Upload unsigned Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Q360Cleanup-v1.0.0-windows-x64-unsigned
+          path: |
+            dist/Q360Cleanup_Windows_x64.exe
+            dist/SHA256SUMS.txt
+            启动-管理员模式.cmd
+            README_使用说明.md
+            LICENSE
+          if-no-files-found: error

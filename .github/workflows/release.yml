@@ -1,0 +1,74 @@
+name: Draft GitHub Release (requires manual review)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing tag to publish as draft, e.g. v1.0.0'
+        required: true
+        default: v1.0.0
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    if: github.event.inputs.release_tag == 'v1.0.0'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: source/go.mod
+          cache-dependency-path: source/go.mod
+      - name: Run Windows-native tests
+        working-directory: source
+        run: go test -count=1 -timeout=5m ./...
+      - name: Build and verify
+        shell: pwsh
+        run: |
+          ./scripts/build-windows.ps1
+          ./scripts/verify-release.ps1
+      - name: Prepare distribution archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist/Q360Cleanup_Windows_x64.exe release/
+          Copy-Item dist/SHA256SUMS.txt release/
+          Copy-Item '启动-管理员模式.cmd' release/
+          Copy-Item README_使用说明.md release/
+          Copy-Item LICENSE release/
+          Compress-Archive -Path release/* -DestinationPath Q360Cleanup-v1.0.0-windows-x64-unsigned.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: Q360Cleanup-v1.0.0-windows-x64-unsigned.zip
+          if-no-files-found: error
+
+  draft-release:
+    needs: windows-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Create review-only draft (never auto-publish as stable)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release-assets/Q360Cleanup-v1.0.0-windows-x64-unsigned.zip \
+            --verify-tag --draft --prerelease \
+            --title "Q360 Cleanup $RELEASE_TAG (unsigned, Windows validation pending)" \
+            --notes-file docs/RELEASE_NOTES_v1.0.0.md

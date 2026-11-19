@@ -1,0 +1,9 @@
+Q360 Cleanup v1.0.0
+Build target: Windows amd64 / CGO_ENABLED=0
+Source baseline: v0.4.0-preview + v1.0.0 release hardening
+Build toolchain: Go 1.23.2 (Linux host cross compilation)
+Build mode: -trimpath -buildvcs=false -ldflags="-H windowsgui -s -w"
+Licensing: MIT
+Code signing: NOT signed. No publisher certificate supplied.
+Validation: Linux core tests and race/static checks; Windows native test binary compiled, not executed on a Windows OS.
+Status: public test candidate; real 360 uninstall and protected driver cases not validated.
